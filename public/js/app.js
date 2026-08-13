@@ -18,10 +18,12 @@ function hoyISO() {
 }
 
 function toast(mensaje) {
-  const t = document.getElementById('toast');
+  const t = document.getElementById('toastMsg');
+  const msg = document.getElementById('facturaMsg');
   t.textContent = mensaje;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  t.style.display = 'block';
+  msg.textContent = '';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
 }
 
 function formatMonto(valor) {

@@ -73,13 +73,5 @@ table.cuadre-tabla input { width: 60px; padding: .3rem; border: 1px solid #cbd5e
 table.cuadre-tabla .num-ro { color: #64748b; }
 
 .msg { font-size: .85rem; margin-top: .5rem; }
-.msg.ok { color: #16a34a; }
+.msg.ok { color: #16a34a; font-weight: 600; }
 .msg.error { color: #dc2626; }
-
-.toast {
-  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-  background: #16a34a; color: white; padding: .75rem 1.5rem;
-  border-radius: .5rem; font-size: .9rem; opacity: 0; pointer-events: none;
-  transition: opacity .3s ease; box-shadow: 0 4px 12px rgba(0,0,0,.15);
-}
-.toast.show { opacity: 1; }
