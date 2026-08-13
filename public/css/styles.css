@@ -75,3 +75,11 @@ table.cuadre-tabla .num-ro { color: #64748b; }
 .msg { font-size: .85rem; margin-top: .5rem; }
 .msg.ok { color: #16a34a; }
 .msg.error { color: #dc2626; }
+
+.toast {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.85); color: white; padding: .75rem 1.5rem;
+  border-radius: .5rem; font-size: .9rem; opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+}
+.toast.show { opacity: 1; }

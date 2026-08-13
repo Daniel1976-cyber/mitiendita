@@ -17,6 +17,13 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function toast(mensaje) {
+  const t = document.getElementById('toast');
+  t.textContent = mensaje;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
 function formatMonto(valor) {
   const num = Number(valor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return config?.monedaLabel === 'CUP' ? `${num} CUP` : `$${num}`;
@@ -326,12 +333,15 @@ async function guardarFactura() {
     await guardarFacturaIDB(factura);
   }
 
-  mostrarHome();
-  if (navigator.onLine) {
-    intentarSincronizarPendientes();
-  } else if (swRegistration && 'sync' in swRegistration) {
-    registrarSync();
-  }
+  toast('Factura cerrada correctamente');
+  setTimeout(() => {
+    mostrarHome();
+    if (navigator.onLine) {
+      intentarSincronizarPendientes();
+    } else if (swRegistration && 'sync' in swRegistration) {
+      registrarSync();
+    }
+  }, 500);
 }
 
 // ─── Cuadre del día ────────────────────────────────────────────────────────
