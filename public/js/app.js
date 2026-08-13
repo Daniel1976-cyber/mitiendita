@@ -1,6 +1,12 @@
 // ─── Estado ────────────────────────────────────────────────────────────────
 const LS_FACTURAS = 'pos_facturas';
 const LS_CATALOGO = 'pos_catalogo';
+const DB_NAME = 'pos-db';
+const DB_VERSION = 1;
+const STORE_FACTURAS = 'facturas';
+
+let db = null;
+let swRegistration = null;
 
 let token = sessionStorage.getItem('posToken') || '';
 let config = null;
@@ -14,6 +20,56 @@ function hoyISO() {
 function formatMonto(valor) {
   const num = Number(valor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return config?.monedaLabel === 'CUP' ? `${num} CUP` : `$${num}`;
+}
+
+// ─── IndexedDB para datos offline resilientes ───────────────────────────────
+async function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => { db = request.result; resolve(db); };
+    request.onupgradeneeded = (event) => {
+      const database = event.target.result;
+      if (!database.objectStoreNames.contains(STORE_FACTURAS)) {
+        database.createObjectStore(STORE_FACTURAS, { keyPath: 'idLocal' });
+      }
+    };
+  });
+}
+
+async function guardarFacturaIDB(factura) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
+    tx.objectStore(STORE_FACTURAS).put(factura);
+    tx.oncomplete = () => { tx.objectStore(STORE_FACTURAS).get(factura.idLocal).onsuccess = (e) => resolve(e.target.result); };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function obtenerPendientesIDB() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_FACTURAS, 'readonly');
+    const store = tx.objectStore(STORE_FACTURAS);
+    const range = IDBKeyRange.lowerBound('');
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result.filter(f => !f.sincronizada));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function marcarSincronizadaIDB(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
+    const store = tx.objectStore(STORE_FACTURAS);
+    store.get(id).onsuccess = (e) => {
+      if (e.target.result) {
+        e.target.result.sincronizada = true;
+        store.put(e.target.result);
+      }
+    };
+    tx.oncomplete = resolve;
+    tx.onerror = reject;
+  });
 }
 
 // ─── Guardado local (localStorage) — es la fuente de verdad del día ───────
@@ -80,6 +136,7 @@ async function intentarSincronizarPendientes() {
   const pendientes = lista.filter((f) => !f.sincronizada);
   if (!pendientes.length) { actualizarBadgeSync(0); return; }
 
+  let huboCambios = false;
   for (const f of pendientes) {
     try {
       const res = await fetch('/api/facturas', {
@@ -87,15 +144,30 @@ async function intentarSincronizarPendientes() {
         headers: { 'Content-Type': 'application/json', 'x-pos-token': token },
         body: JSON.stringify({ fecha: f.fecha, vendedor: f.vendedor, items: f.items }),
       });
-      if (res.ok) f.sincronizada = true;
+      if (res.ok) {
+        f.sincronizada = true;
+        huboCambios = true;
+      }
     } catch (e) {
       break; // sigue sin conexión, dejamos de intentar por ahora
     }
   }
-  guardarFacturasLocales(lista);
+  if (huboCambios) {
+    guardarFacturasLocales(lista);
+    if (db) {
+      for (const f of lista.filter(f => f.sincronizada)) await marcarSincronizadaIDB(f.idLocal);
+    }
+  }
   const quedan = leerFacturasLocales().filter((f) => !f.sincronizada).length;
   actualizarBadgeSync(quedan);
   if (document.getElementById('home').classList.contains('active')) renderHome();
+}
+
+async function registrarSync() {
+  if (!swRegistration || !('sync' in swRegistration)) return;
+  try {
+    await swRegistration.sync.register('sync-facturas');
+  } catch (e) { /* Sync no disponible */ }
 }
 
 function actualizarBadgeSync(pendientes) {
@@ -111,8 +183,6 @@ function actualizarBadgeSync(pendientes) {
 
 window.addEventListener('online', intentarSincronizarPendientes);
 setInterval(intentarSincronizarPendientes, 30000); // reintento silencioso cada 30s
-
-// ─── Home: lista de ventas de hoy ──────────────────────────────────────────
 function renderHome() {
   const fecha = hoyISO();
   const todas = leerFacturasLocales().filter((f) => f.fecha === fecha);
@@ -220,7 +290,7 @@ function actualizarTotalFactura() {
   document.getElementById('totalFactura').textContent = formatMonto(total);
 }
 
-function guardarFactura() {
+async function guardarFactura() {
   const msg = document.getElementById('facturaMsg');
   const validas = lineasFactura.filter((l) => l.producto_id);
   if (!validas.length) {
@@ -248,14 +318,20 @@ function guardarFactura() {
     sincronizada: false,
   };
 
-  // Se guarda en el celular DE INMEDIATO — esto es lo que hace que nunca
-  // se pierda una venta aunque no haya internet en ese momento.
   const lista = leerFacturasLocales();
   lista.push(factura);
   guardarFacturasLocales(lista);
 
+  if (db) {
+    await guardarFacturaIDB(factura);
+  }
+
   mostrarHome();
-  intentarSincronizarPendientes();
+  if (navigator.onLine) {
+    intentarSincronizarPendientes();
+  } else if (swRegistration && 'sync' in swRegistration) {
+    registrarSync();
+  }
 }
 
 // ─── Cuadre del día ────────────────────────────────────────────────────────
@@ -371,12 +447,27 @@ async function guardarCuadre() {
 
 // ─── Arranque ────────────────────────────────────────────────────────────
 (async function start() {
+  try {
+    await initDB();
+  } catch (e) { /* IndexedDB no disponible */ }
+  
   config = await fetch('/api/config').then((r) => r.json());
   document.getElementById('nombreLogin').textContent = config.nombre;
   document.getElementById('logoLogin').src = config.logo;
   document.getElementById('nombreNav').textContent = config.nombre;
   document.getElementById('logoNav').src = config.logo;
   document.documentElement.style.setProperty('--color-primario', config.colorPrimario);
+
+  if (navigator.serviceWorker && 'SyncManager' in window) {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    swRegistration = registration;
+    
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'sync-requested') {
+        intentarSincronizarPendientes();
+      }
+    });
+  }
 
   if (token) await entrarApp();
 })();

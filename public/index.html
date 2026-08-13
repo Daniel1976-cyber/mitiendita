@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#059669" />
+  <link rel="manifest" href="/manifest.json" />
   <title>Punto de Venta</title>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
@@ -77,5 +79,12 @@
   </div>
 
   <script src="/js/app.js"></script>
+<script>
+if ('serviceWorker' in navigator && 'SyncManager' in window) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => console.log('SW registrado'))
+    .catch(() => console.log('SW no disponible'));
+}
+</script>
 </body>
 </html>
