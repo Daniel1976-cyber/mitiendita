@@ -50,7 +50,7 @@ async function guardarFacturaIDB(factura) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_FACTURAS, 'readwrite');
     tx.objectStore(STORE_FACTURAS).put(factura);
-    tx.oncomplete = () => { tx.objectStore(STORE_FACTURAS).get(factura.idLocal).onsuccess = (e) => resolve(e.target.result); };
+    tx.oncomplete = () => resolve(factura);
     tx.onerror = () => reject(tx.error);
   });
 }
