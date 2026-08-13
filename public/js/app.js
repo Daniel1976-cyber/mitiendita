@@ -334,14 +334,12 @@ async function guardarFactura() {
   }
 
   toast('Factura cerrada correctamente');
-  setTimeout(() => {
-    mostrarHome();
-    if (navigator.onLine) {
-      intentarSincronizarPendientes();
-    } else if (swRegistration && 'sync' in swRegistration) {
-      registrarSync();
-    }
-  }, 500);
+  mostrarHome();
+  if (navigator.onLine) {
+    intentarSincronizarPendientes();
+  } else if (swRegistration && 'sync' in swRegistration) {
+    registrarSync();
+  }
 }
 
 // ─── Cuadre del día ────────────────────────────────────────────────────────
