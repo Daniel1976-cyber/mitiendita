@@ -85,6 +85,20 @@ app.post('/api/facturas', verifyToken, async (req, res) => {
   }
 });
 
+// ─── Eliminar una factura (y sus líneas, por cascade) ─────────────────────
+app.delete('/api/facturas/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: 'Falta el id de la factura' });
+
+  try {
+    const { error } = await supabase.from('facturas').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Cuadre diario ─────────────────────────────────────────────────────────
 // Trae, por producto: cantidad inicial (heredada del cierre anterior),
 // entrada/merma ya guardadas hoy (si las hay), y la cantidad vendida real

@@ -55,6 +55,15 @@ async function guardarFacturaIDB(factura) {
   });
 }
 
+async function eliminarFacturaIDB(idLocal) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
+    tx.objectStore(STORE_FACTURAS).delete(idLocal);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 async function obtenerPendientesIDB() {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_FACTURAS, 'readonly');
@@ -154,7 +163,9 @@ async function intentarSincronizarPendientes() {
         body: JSON.stringify({ fecha: f.fecha, vendedor: f.vendedor, items: f.items }),
       });
       if (res.ok) {
+        const data = await res.json();
         f.sincronizada = true;
+        f.factura_id = data.factura_id;
         huboCambios = true;
       }
     } catch (e) {
@@ -206,13 +217,56 @@ function renderHome() {
           <div class="num">Factura ${idx + 1}${f.vendedor ? ' · ' + f.vendedor : ''}</div>
           <div class="meta">${new Date(f.creadaEn).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}${f.sincronizada ? '' : ' · pendiente de subir'}</div>
         </div>
-        <div class="monto">${formatMonto(f.total)}</div>
+        <div class="factura-card-right">
+          <div class="monto">${formatMonto(f.total)}</div>
+          <button class="eliminar-factura" title="Eliminar factura" onclick="eliminarFactura('${f.idLocal}')">🗑️</button>
+        </div>
       </div>
     `).join('');
   }
 
   const pendientes = leerFacturasLocales().filter((f) => !f.sincronizada).length;
   actualizarBadgeSync(pendientes);
+}
+
+// ─── Eliminar factura ──────────────────────────────────────────────────────
+async function eliminarFactura(idLocal) {
+  const lista = leerFacturasLocales();
+  const factura = lista.find((f) => f.idLocal === idLocal);
+  if (!factura) return;
+
+  const confirmado = confirm(
+    factura.sincronizada
+      ? `¿Eliminar la factura de ${formatMonto(factura.total)}? Esto también la borra de Supabase.`
+      : `¿Eliminar la factura de ${formatMonto(factura.total)}? Todavía no se había subido.`
+  );
+  if (!confirmado) return;
+
+  // Si ya estaba sincronizada, primero intentamos borrarla del servidor.
+  if (factura.sincronizada && factura.factura_id) {
+    try {
+      const res = await fetch(`/api/facturas/${factura.factura_id}`, {
+        method: 'DELETE',
+        headers: { 'x-pos-token': token },
+      });
+      if (!res.ok) {
+        toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.');
+        return;
+      }
+    } catch (e) {
+      toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.');
+      return;
+    }
+  }
+
+  const nuevaLista = lista.filter((f) => f.idLocal !== idLocal);
+  guardarFacturasLocales(nuevaLista);
+  if (db) {
+    try { await eliminarFacturaIDB(idLocal); } catch (e) { /* no crítico */ }
+  }
+
+  toast('Factura eliminada');
+  renderHome();
 }
 
 // ─── Nueva factura ─────────────────────────────────────────────────────────

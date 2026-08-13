@@ -42,6 +42,11 @@ header button.nav-btn {
 .factura-card .meta { font-size: .8rem; color: #64748b; }
 .factura-card .monto { font-weight: 700; font-size: 1.05rem; }
 .factura-card.pendiente { border-left: 3px solid #fbbf24; }
+.factura-card-right { display: flex; align-items: center; gap: .75rem; }
+.factura-card .eliminar-factura {
+  background: none; border: none; cursor: pointer; font-size: 1.05rem;
+  color: #dc2626; padding: .25rem; line-height: 1;
+}
 
 .linea-producto {
   border: 1px solid #e5e7eb; border-radius: .5rem; padding: .8rem; margin-bottom: .75rem; position: relative;
