@@ -17,13 +17,13 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function toast(mensaje) {
+function toast(mensaje, tipo = 'ok') {
   const t = document.getElementById('toastMsg');
-  const msg = document.getElementById('facturaMsg');
   t.textContent = mensaje;
+  t.className = tipo === 'error' ? 'toast-global error' : 'toast-global';
   t.style.display = 'block';
-  msg.textContent = '';
-  setTimeout(() => { t.style.display = 'none'; }, 3000);
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { t.style.display = 'none'; }, 3000);
 }
 
 function formatMonto(valor) {
@@ -250,11 +250,11 @@ async function eliminarFactura(idLocal) {
         headers: { 'x-pos-token': token },
       });
       if (!res.ok) {
-        toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.');
+        toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.', 'error');
         return;
       }
     } catch (e) {
-      toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.');
+      toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.', 'error');
       return;
     }
   }
@@ -355,6 +355,11 @@ function actualizarTotalFactura() {
 
 async function guardarFactura() {
   const msg = document.getElementById('facturaMsg');
+  const btn = document.getElementById('btnCerrarFactura');
+
+  // Evita doble clic / doble factura: si ya se está guardando, no hace nada.
+  if (btn && btn.disabled) return;
+
   const validas = lineasFactura.filter((l) => l.producto_id);
   if (!validas.length) {
     msg.className = 'msg error';
@@ -362,39 +367,46 @@ async function guardarFactura() {
     return;
   }
 
-  const items = validas.map((l) => ({
-    producto_id: l.producto_id,
-    nombre: l.nombre,
-    precio: l.precio,
-    cantidad: l.cantidad,
-    subtotal: l.precio * l.cantidad,
-  }));
-  const total = items.reduce((acc, i) => acc + i.subtotal, 0);
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  msg.textContent = '';
 
-  const factura = {
-    idLocal: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    fecha: hoyISO(),
-    vendedor: document.getElementById('vendedorInput').value.trim(),
-    items,
-    total,
-    creadaEn: new Date().toISOString(),
-    sincronizada: false,
-  };
+  try {
+    const items = validas.map((l) => ({
+      producto_id: l.producto_id,
+      nombre: l.nombre,
+      precio: l.precio,
+      cantidad: l.cantidad,
+      subtotal: l.precio * l.cantidad,
+    }));
+    const total = items.reduce((acc, i) => acc + i.subtotal, 0);
 
-  const lista = leerFacturasLocales();
-  lista.push(factura);
-  guardarFacturasLocales(lista);
+    const factura = {
+      idLocal: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      fecha: hoyISO(),
+      vendedor: document.getElementById('vendedorInput').value.trim(),
+      items,
+      total,
+      creadaEn: new Date().toISOString(),
+      sincronizada: false,
+    };
 
-  if (db) {
-    await guardarFacturaIDB(factura);
-  }
+    const lista = leerFacturasLocales();
+    lista.push(factura);
+    guardarFacturasLocales(lista);
 
-  toast('Factura cerrada correctamente');
-  mostrarHome();
-  if (navigator.onLine) {
-    intentarSincronizarPendientes();
-  } else if (swRegistration && 'sync' in swRegistration) {
-    registrarSync();
+    if (db) {
+      await guardarFacturaIDB(factura);
+    }
+
+    toast('✅ Factura cerrada correctamente');
+    mostrarHome();
+    if (navigator.onLine) {
+      intentarSincronizarPendientes();
+    } else if (swRegistration && 'sync' in swRegistration) {
+      registrarSync();
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Cerrar factura'; }
   }
 }
 

@@ -80,3 +80,11 @@ table.cuadre-tabla .num-ro { color: #64748b; }
 .msg { font-size: .85rem; margin-top: .5rem; }
 .msg.ok { color: #16a34a; font-weight: 600; }
 .msg.error { color: #dc2626; }
+
+.toast-global {
+  display: none; position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+  background: #16a34a; color: white; padding: .75rem 1.25rem; border-radius: .6rem;
+  font-weight: 700; font-size: .95rem; box-shadow: 0 8px 24px rgba(0,0,0,.2);
+  z-index: 9999; max-width: 90vw; text-align: center;
+}
+.toast-global.error { background: #dc2626; }

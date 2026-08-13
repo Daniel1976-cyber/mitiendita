@@ -22,6 +22,9 @@
     </div>
   </div>
 
+  <!-- TOAST global — vive fuera de las vistas para que se vea al navegar entre pantallas -->
+  <div id="toastMsg" class="toast-global"></div>
+
   <!-- NAV -->
   <header id="topNav" style="display:none;">
     <img id="logoNav" src="" alt="logo" />
@@ -49,10 +52,9 @@
       <div id="lineasContenedor"></div>
       <button class="secundario" onclick="agregarLinea()">➕ Agregar producto</button>
       <div class="total-row"><span>Total</span><span id="totalFactura">0.00</span></div>
-      <button class="primario" onclick="guardarFactura()">Cerrar factura</button>
+      <button class="primario" id="btnCerrarFactura" onclick="guardarFactura()">Cerrar factura</button>
       <button class="secundario" onclick="mostrarHome()">Cancelar</button>
       <p id="facturaMsg" class="msg"></p>
-      <p id="toastMsg" class="msg ok" style="display:none;"></p>
     </div>
   </div>
 
