@@ -1,0 +1,77 @@
+:root { --color-primario: #0f766e; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; color: #1f2937; background: #f8fafc; }
+button, input, select, textarea { font-family: inherit; }
+
+header {
+  background: var(--color-primario); color: white; padding: 1rem 1.5rem;
+  display: flex; align-items: center; gap: .75rem;
+}
+header img { height: 40px; border-radius: 50%; object-fit: cover; }
+header .store-name { font-weight: 700; font-size: 1.05rem; }
+header .spacer { flex: 1; }
+header .sync-badge {
+  font-size: .75rem; background: rgba(255,255,255,.18); padding: .3rem .6rem; border-radius: 999px;
+}
+header .sync-badge.pendiente { background: #fbbf24; color: #78350f; font-weight: 600; }
+header button.nav-btn {
+  background: none; border: 1px solid rgba(255,255,255,.5); color: white;
+  padding: .35rem .7rem; border-radius: .4rem; font-size: .8rem; cursor: pointer;
+}
+
+.view { display: none; padding: 1rem; max-width: 640px; margin: 0 auto; }
+.view.active { display: block; }
+
+.panel { background: white; border: 1px solid #e5e7eb; border-radius: .6rem; padding: 1.25rem; margin-bottom: 1rem; }
+.panel input, .panel select { width: 100%; padding: .6rem; border: 1px solid #cbd5e1; border-radius: .4rem; margin-bottom: .75rem; font-size: 1rem; }
+.panel button.primario {
+  width: 100%; background: var(--color-primario); color: white; border: none;
+  padding: .8rem; border-radius: .5rem; font-size: 1rem; cursor: pointer; font-weight: 600;
+}
+.panel button.secundario {
+  width: 100%; background: white; color: var(--color-primario); border: 1px solid var(--color-primario);
+  padding: .7rem; border-radius: .5rem; font-size: .95rem; cursor: pointer; margin-top: .5rem;
+}
+
+.factura-card {
+  display: flex; justify-content: space-between; align-items: center;
+  background: white; border: 1px solid #e5e7eb; border-radius: .5rem;
+  padding: .8rem 1rem; margin-bottom: .6rem;
+}
+.factura-card .num { font-weight: 700; color: var(--color-primario); }
+.factura-card .meta { font-size: .8rem; color: #64748b; }
+.factura-card .monto { font-weight: 700; font-size: 1.05rem; }
+.factura-card.pendiente { border-left: 3px solid #fbbf24; }
+
+.linea-producto {
+  border: 1px solid #e5e7eb; border-radius: .5rem; padding: .8rem; margin-bottom: .75rem; position: relative;
+}
+.linea-producto .buscador-wrap { position: relative; }
+.linea-producto .sugerencias {
+  position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e5e7eb;
+  border-radius: .5rem; box-shadow: 0 8px 20px rgba(0,0,0,.12); z-index: 20; max-height: 220px; overflow-y: auto; display: none;
+}
+.linea-producto .sugerencias.open { display: block; }
+.linea-producto .sugerencias .item { padding: .6rem .8rem; cursor: pointer; font-size: .9rem; display: flex; justify-content: space-between; }
+.linea-producto .sugerencias .item:hover { background: #f0fdfa; }
+.linea-producto .fila-cantidad { display: flex; gap: .5rem; align-items: center; margin-top: .5rem; }
+.linea-producto .fila-cantidad input { margin-bottom: 0; }
+.linea-producto .subtotal { text-align: right; font-weight: 700; margin-top: .5rem; color: var(--color-primario); }
+.linea-producto .quitar-linea {
+  position: absolute; top: .5rem; right: .5rem; background: none; border: none;
+  color: #dc2626; cursor: pointer; font-size: 1rem;
+}
+
+.total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 1.2rem; font-weight: 700; padding: 1rem 0; border-top: 2px solid #e5e7eb; margin-top: .5rem;
+}
+
+table.cuadre-tabla { width: 100%; border-collapse: collapse; font-size: .85rem; }
+table.cuadre-tabla th, table.cuadre-tabla td { padding: .5rem; text-align: left; border-bottom: 1px solid #f1f5f9; }
+table.cuadre-tabla input { width: 60px; padding: .3rem; border: 1px solid #cbd5e1; border-radius: .3rem; }
+table.cuadre-tabla .num-ro { color: #64748b; }
+
+.msg { font-size: .85rem; margin-top: .5rem; }
+.msg.ok { color: #16a34a; }
+.msg.error { color: #dc2626; }

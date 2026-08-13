@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Punto de Venta</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login" class="view active">
+    <header><img id="logoLogin" src="" alt="logo" /><div class="store-name" id="nombreLogin"></div></header>
+    <div class="panel" style="max-width:360px; margin:2rem auto;">
+      <h3>Acceso</h3>
+      <input id="password" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter') login()" />
+      <button class="primario" onclick="login()">Entrar</button>
+      <p id="loginError" class="msg error"></p>
+      <p style="font-size:.8rem; color:#94a3b8;">Necesitas conexión la primera vez del día para entrar. Después, la app sigue funcionando aunque se caiga el wifi.</p>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <header id="topNav" style="display:none;">
+    <img id="logoNav" src="" alt="logo" />
+    <div class="store-name" id="nombreNav"></div>
+    <span class="spacer"></span>
+    <span class="sync-badge" id="syncBadge">Al día</span>
+    <button class="nav-btn" onclick="mostrarHome()">🏠</button>
+  </header>
+
+  <!-- HOME -->
+  <div id="home" class="view">
+    <div class="panel">
+      <button class="primario" onclick="nuevaFactura()">➕ Nueva factura</button>
+      <button class="secundario" onclick="abrirCuadre()">📋 Cuadre del día</button>
+    </div>
+    <h3 style="padding:0 .25rem;">Ventas de hoy</h3>
+    <div id="facturasHoy"></div>
+  </div>
+
+  <!-- NUEVA FACTURA -->
+  <div id="vistaFactura" class="view">
+    <div class="panel">
+      <h3 id="tituloFactura">Nueva factura</h3>
+      <input id="vendedorInput" type="text" placeholder="Vendedor (tu nombre)" />
+      <div id="lineasContenedor"></div>
+      <button class="secundario" onclick="agregarLinea()">➕ Agregar producto</button>
+      <div class="total-row"><span>Total</span><span id="totalFactura">0.00</span></div>
+      <button class="primario" onclick="guardarFactura()">Guardar factura</button>
+      <button class="secundario" onclick="mostrarHome()">Cancelar</button>
+      <p id="facturaMsg" class="msg"></p>
+    </div>
+  </div>
+
+  <!-- CUADRE DEL DÍA -->
+  <div id="vistaCuadre" class="view">
+    <div class="panel">
+      <h3>Cuadre del día</h3>
+      <input id="fechaCuadre" type="date" onchange="cargarCuadre()" />
+      <div style="overflow-x:auto;">
+        <table class="cuadre-tabla">
+          <thead>
+            <tr>
+              <th>Producto</th><th>Inicial</th><th>Entrada</th><th>Merma</th>
+              <th>Vendida</th><th>Final</th><th>Importe</th>
+            </tr>
+          </thead>
+          <tbody id="cuadreTbody"></tbody>
+        </table>
+      </div>
+      <div class="total-row"><span>Importe total del día</span><span id="cuadreTotal">0.00</span></div>
+      <button class="primario" onclick="guardarCuadre()">Guardar cuadre del día</button>
+      <button class="secundario" onclick="mostrarHome()">Volver</button>
+      <p id="cuadreMsg" class="msg"></p>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

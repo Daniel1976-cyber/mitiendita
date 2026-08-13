@@ -1,0 +1,16 @@
+{
+  "name": "tienda-pos",
+  "version": "1.0.0",
+  "description": "Punto de venta / registro diario, conectado al Supabase de la tienda",
+  "type": "module",
+  "scripts": {
+    "dev": "node server-local.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
