@@ -24,6 +24,21 @@ header button.nav-btn {
 
 .panel { background: white; border: 1px solid #e5e7eb; border-radius: .6rem; padding: 1.25rem; margin-bottom: 1rem; }
 .panel input, .panel select { width: 100%; padding: .6rem; border: 1px solid #cbd5e1; border-radius: .4rem; margin-bottom: .75rem; font-size: 1rem; }
+/* Campo de contraseña con "ojito" para mostrar/ocultar. 44 px de alto = tamaño
+   cómodo para el dedo en el celular. */
+.pw-wrap { position: relative; margin-bottom: .75rem; }
+.panel .pw-wrap input { margin-bottom: 0; min-height: 2.75rem; padding-right: 3rem; }
+.panel .pw-toggle {
+  position: absolute; top: 0; right: 0; width: 2.75rem; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; background: transparent; border: none; color: #475569;
+  border-radius: 0 .4rem .4rem 0; cursor: pointer;
+}
+.panel .pw-toggle:hover { color: #111827; }
+.panel .pw-toggle:focus-visible { outline: 2px solid var(--color-primario); outline-offset: -2px; }
+.pw-toggle .ico-ojo-tachado { display: none; }
+.pw-toggle[aria-pressed="true"] .ico-ojo { display: none; }
+.pw-toggle[aria-pressed="true"] .ico-ojo-tachado { display: block; }
 .panel button.primario {
   width: 100%; background: var(--color-primario); color: white; border: none;
   padding: .8rem; border-radius: .5rem; font-size: 1rem; cursor: pointer; font-weight: 600;
@@ -42,11 +57,6 @@ header button.nav-btn {
 .factura-card .meta { font-size: .8rem; color: #64748b; }
 .factura-card .monto { font-weight: 700; font-size: 1.05rem; }
 .factura-card.pendiente { border-left: 3px solid #fbbf24; }
-.factura-card-right { display: flex; align-items: center; gap: .75rem; }
-.factura-card .eliminar-factura {
-  background: none; border: none; cursor: pointer; font-size: 1.05rem;
-  color: #dc2626; padding: .25rem; line-height: 1;
-}
 
 .linea-producto {
   border: 1px solid #e5e7eb; border-radius: .5rem; padding: .8rem; margin-bottom: .75rem; position: relative;
@@ -78,13 +88,5 @@ table.cuadre-tabla input { width: 60px; padding: .3rem; border: 1px solid #cbd5e
 table.cuadre-tabla .num-ro { color: #64748b; }
 
 .msg { font-size: .85rem; margin-top: .5rem; }
-.msg.ok { color: #16a34a; font-weight: 600; }
+.msg.ok { color: #16a34a; }
 .msg.error { color: #dc2626; }
-
-.toast-global {
-  display: none; position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
-  background: #16a34a; color: white; padding: .75rem 1.25rem; border-radius: .6rem;
-  font-weight: 700; font-size: .95rem; box-shadow: 0 8px 24px rgba(0,0,0,.2);
-  z-index: 9999; max-width: 90vw; text-align: center;
-}
-.toast-global.error { background: #dc2626; }

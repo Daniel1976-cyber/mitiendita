@@ -1,12 +1,6 @@
 // ─── Estado ────────────────────────────────────────────────────────────────
 const LS_FACTURAS = 'pos_facturas';
 const LS_CATALOGO = 'pos_catalogo';
-const DB_NAME = 'pos-db';
-const DB_VERSION = 1;
-const STORE_FACTURAS = 'facturas';
-
-let db = null;
-let swRegistration = null;
 
 let token = sessionStorage.getItem('posToken') || '';
 let config = null;
@@ -17,77 +11,9 @@ function hoyISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function toast(mensaje, tipo = 'ok') {
-  const t = document.getElementById('toastMsg');
-  t.textContent = mensaje;
-  t.className = tipo === 'error' ? 'toast-global error' : 'toast-global';
-  t.style.display = 'block';
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { t.style.display = 'none'; }, 3000);
-}
-
 function formatMonto(valor) {
   const num = Number(valor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return config?.monedaLabel === 'CUP' ? `${num} CUP` : `$${num}`;
-}
-
-// ─── IndexedDB para datos offline resilientes ───────────────────────────────
-async function initDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => { db = request.result; resolve(db); };
-    request.onupgradeneeded = (event) => {
-      const database = event.target.result;
-      if (!database.objectStoreNames.contains(STORE_FACTURAS)) {
-        database.createObjectStore(STORE_FACTURAS, { keyPath: 'idLocal' });
-      }
-    };
-  });
-}
-
-async function guardarFacturaIDB(factura) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
-    tx.objectStore(STORE_FACTURAS).put(factura);
-    tx.oncomplete = () => resolve(factura);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function eliminarFacturaIDB(idLocal) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
-    tx.objectStore(STORE_FACTURAS).delete(idLocal);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function obtenerPendientesIDB() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_FACTURAS, 'readonly');
-    const store = tx.objectStore(STORE_FACTURAS);
-    const range = IDBKeyRange.lowerBound('');
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result.filter(f => !f.sincronizada));
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function marcarSincronizadaIDB(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_FACTURAS, 'readwrite');
-    const store = tx.objectStore(STORE_FACTURAS);
-    store.get(id).onsuccess = (e) => {
-      if (e.target.result) {
-        e.target.result.sincronizada = true;
-        store.put(e.target.result);
-      }
-    };
-    tx.oncomplete = resolve;
-    tx.onerror = reject;
-  });
 }
 
 // ─── Guardado local (localStorage) — es la fuente de verdad del día ───────
@@ -109,6 +35,25 @@ function showView(id) {
 function mostrarHome() { showView('home'); renderHome(); }
 
 // ─── Login ─────────────────────────────────────────────────────────────────
+// Ojito del campo de contraseña: alterna entre ocultar y mostrar lo escrito.
+// El botón no le quita el foco al campo (onmousedown), así el teclado del
+// celular no se cierra, y el cursor se queda donde estaba.
+function fijarVisibilidadPassword(visible) {
+  const input = document.getElementById('password');
+  const inicio = input.selectionStart;
+  const fin = input.selectionEnd;
+  input.type = visible ? 'text' : 'password';
+  document.getElementById('pwToggle').setAttribute('aria-pressed', String(visible));
+  return { input, inicio, fin };
+}
+
+function togglePassword() {
+  const mostrar = document.getElementById('password').type === 'password';
+  const { input, inicio, fin } = fijarVisibilidadPassword(mostrar);
+  input.focus();
+  try { input.setSelectionRange(inicio, fin); } catch (e) { /* algunos navegadores no lo permiten */ }
+}
+
 async function login() {
   const password = document.getElementById('password').value;
   try {
@@ -123,6 +68,10 @@ async function login() {
     const data = await res.json();
     token = data.token;
     sessionStorage.setItem('posToken', token);
+    // Esta app no tiene botón de salir: se borra la contraseña escrita (y se
+    // vuelve a ocultar) para que no se quede dentro del campo.
+    document.getElementById('password').value = '';
+    fijarVisibilidadPassword(false);
     await entrarApp();
   } catch (e) {
     document.getElementById('loginError').textContent = 'Sin conexión — necesitas internet para entrar la primera vez.';
@@ -154,7 +103,6 @@ async function intentarSincronizarPendientes() {
   const pendientes = lista.filter((f) => !f.sincronizada);
   if (!pendientes.length) { actualizarBadgeSync(0); return; }
 
-  let huboCambios = false;
   for (const f of pendientes) {
     try {
       const res = await fetch('/api/facturas', {
@@ -162,32 +110,15 @@ async function intentarSincronizarPendientes() {
         headers: { 'Content-Type': 'application/json', 'x-pos-token': token },
         body: JSON.stringify({ fecha: f.fecha, vendedor: f.vendedor, items: f.items }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        f.sincronizada = true;
-        f.factura_id = data.factura_id;
-        huboCambios = true;
-      }
+      if (res.ok) f.sincronizada = true;
     } catch (e) {
       break; // sigue sin conexión, dejamos de intentar por ahora
     }
   }
-  if (huboCambios) {
-    guardarFacturasLocales(lista);
-    if (db) {
-      for (const f of lista.filter(f => f.sincronizada)) await marcarSincronizadaIDB(f.idLocal);
-    }
-  }
+  guardarFacturasLocales(lista);
   const quedan = leerFacturasLocales().filter((f) => !f.sincronizada).length;
   actualizarBadgeSync(quedan);
   if (document.getElementById('home').classList.contains('active')) renderHome();
-}
-
-async function registrarSync() {
-  if (!swRegistration || !('sync' in swRegistration)) return;
-  try {
-    await swRegistration.sync.register('sync-facturas');
-  } catch (e) { /* Sync no disponible */ }
 }
 
 function actualizarBadgeSync(pendientes) {
@@ -203,6 +134,8 @@ function actualizarBadgeSync(pendientes) {
 
 window.addEventListener('online', intentarSincronizarPendientes);
 setInterval(intentarSincronizarPendientes, 30000); // reintento silencioso cada 30s
+
+// ─── Home: lista de ventas de hoy ──────────────────────────────────────────
 function renderHome() {
   const fecha = hoyISO();
   const todas = leerFacturasLocales().filter((f) => f.fecha === fecha);
@@ -217,56 +150,13 @@ function renderHome() {
           <div class="num">Factura ${idx + 1}${f.vendedor ? ' · ' + f.vendedor : ''}</div>
           <div class="meta">${new Date(f.creadaEn).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}${f.sincronizada ? '' : ' · pendiente de subir'}</div>
         </div>
-        <div class="factura-card-right">
-          <div class="monto">${formatMonto(f.total)}</div>
-          <button class="eliminar-factura" title="Eliminar factura" onclick="eliminarFactura('${f.idLocal}')">🗑️</button>
-        </div>
+        <div class="monto">${formatMonto(f.total)}</div>
       </div>
     `).join('');
   }
 
   const pendientes = leerFacturasLocales().filter((f) => !f.sincronizada).length;
   actualizarBadgeSync(pendientes);
-}
-
-// ─── Eliminar factura ──────────────────────────────────────────────────────
-async function eliminarFactura(idLocal) {
-  const lista = leerFacturasLocales();
-  const factura = lista.find((f) => f.idLocal === idLocal);
-  if (!factura) return;
-
-  const confirmado = confirm(
-    factura.sincronizada
-      ? `¿Eliminar la factura de ${formatMonto(factura.total)}? Esto también la borra de Supabase.`
-      : `¿Eliminar la factura de ${formatMonto(factura.total)}? Todavía no se había subido.`
-  );
-  if (!confirmado) return;
-
-  // Si ya estaba sincronizada, primero intentamos borrarla del servidor.
-  if (factura.sincronizada && factura.factura_id) {
-    try {
-      const res = await fetch(`/api/facturas/${factura.factura_id}`, {
-        method: 'DELETE',
-        headers: { 'x-pos-token': token },
-      });
-      if (!res.ok) {
-        toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.', 'error');
-        return;
-      }
-    } catch (e) {
-      toast('Sin conexión: no se pudo borrar del servidor. Intenta de nuevo con internet.', 'error');
-      return;
-    }
-  }
-
-  const nuevaLista = lista.filter((f) => f.idLocal !== idLocal);
-  guardarFacturasLocales(nuevaLista);
-  if (db) {
-    try { await eliminarFacturaIDB(idLocal); } catch (e) { /* no crítico */ }
-  }
-
-  toast('Factura eliminada');
-  renderHome();
 }
 
 // ─── Nueva factura ─────────────────────────────────────────────────────────
@@ -353,13 +243,8 @@ function actualizarTotalFactura() {
   document.getElementById('totalFactura').textContent = formatMonto(total);
 }
 
-async function guardarFactura() {
+function guardarFactura() {
   const msg = document.getElementById('facturaMsg');
-  const btn = document.getElementById('btnCerrarFactura');
-
-  // Evita doble clic / doble factura: si ya se está guardando, no hace nada.
-  if (btn && btn.disabled) return;
-
   const validas = lineasFactura.filter((l) => l.producto_id);
   if (!validas.length) {
     msg.className = 'msg error';
@@ -367,47 +252,33 @@ async function guardarFactura() {
     return;
   }
 
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
-  msg.textContent = '';
+  const items = validas.map((l) => ({
+    producto_id: l.producto_id,
+    nombre: l.nombre,
+    precio: l.precio,
+    cantidad: l.cantidad,
+    subtotal: l.precio * l.cantidad,
+  }));
+  const total = items.reduce((acc, i) => acc + i.subtotal, 0);
 
-  try {
-    const items = validas.map((l) => ({
-      producto_id: l.producto_id,
-      nombre: l.nombre,
-      precio: l.precio,
-      cantidad: l.cantidad,
-      subtotal: l.precio * l.cantidad,
-    }));
-    const total = items.reduce((acc, i) => acc + i.subtotal, 0);
+  const factura = {
+    idLocal: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    fecha: hoyISO(),
+    vendedor: document.getElementById('vendedorInput').value.trim(),
+    items,
+    total,
+    creadaEn: new Date().toISOString(),
+    sincronizada: false,
+  };
 
-    const factura = {
-      idLocal: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      fecha: hoyISO(),
-      vendedor: document.getElementById('vendedorInput').value.trim(),
-      items,
-      total,
-      creadaEn: new Date().toISOString(),
-      sincronizada: false,
-    };
+  // Se guarda en el celular DE INMEDIATO — esto es lo que hace que nunca
+  // se pierda una venta aunque no haya internet en ese momento.
+  const lista = leerFacturasLocales();
+  lista.push(factura);
+  guardarFacturasLocales(lista);
 
-    const lista = leerFacturasLocales();
-    lista.push(factura);
-    guardarFacturasLocales(lista);
-
-    if (db) {
-      await guardarFacturaIDB(factura);
-    }
-
-    toast('✅ Factura cerrada correctamente');
-    mostrarHome();
-    if (navigator.onLine) {
-      intentarSincronizarPendientes();
-    } else if (swRegistration && 'sync' in swRegistration) {
-      registrarSync();
-    }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Cerrar factura'; }
-  }
+  mostrarHome();
+  intentarSincronizarPendientes();
 }
 
 // ─── Cuadre del día ────────────────────────────────────────────────────────
@@ -523,27 +394,12 @@ async function guardarCuadre() {
 
 // ─── Arranque ────────────────────────────────────────────────────────────
 (async function start() {
-  try {
-    await initDB();
-  } catch (e) { /* IndexedDB no disponible */ }
-  
   config = await fetch('/api/config').then((r) => r.json());
   document.getElementById('nombreLogin').textContent = config.nombre;
   document.getElementById('logoLogin').src = config.logo;
   document.getElementById('nombreNav').textContent = config.nombre;
   document.getElementById('logoNav').src = config.logo;
   document.documentElement.style.setProperty('--color-primario', config.colorPrimario);
-
-  if (navigator.serviceWorker && 'SyncManager' in window) {
-    const registration = await navigator.serviceWorker.register('/sw.js');
-    swRegistration = registration;
-    
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'sync-requested') {
-        intentarSincronizarPendientes();
-      }
-    });
-  }
 
   if (token) await entrarApp();
 })();
