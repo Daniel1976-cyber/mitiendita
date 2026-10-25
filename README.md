@@ -50,3 +50,36 @@ Necesitas conexión a internet **la primera vez del día** para iniciar
 sesión (la validación de contraseña no puede hacerse sin conectarse una
 vez). Después de entrar, la app tolera que se caiga el wifi durante el
 resto del día.
+
+## Cerrar sesión
+
+El botón **🚪 Cerrar sesión** está al final de la pantalla de inicio (lejos de los
+botones que se tocan todo el día, para no salir por error).
+
+- Las facturas sin subir **no se pierden** al cerrar sesión: viven en el celular y
+  se suben solas cuando se vuelve a entrar con internet.
+- **Volver a entrar exige conexión** (la contraseña se valida en el servidor). Si
+  se cierra sesión sin internet, no se podrá facturar hasta recuperarla; la app lo
+  avisa antes de salir.
+- Sin sesión iniciada, la app deja de intentar subir facturas.
+
+## Conexión lenta y subida de facturas
+
+- **Entrar es inmediato**: la pantalla de inicio aparece con lo que ya hay guardado
+  en el celular; el catálogo se refresca después con un límite de 4 segundos. Si la
+  señal está colgada, se sigue con el catálogo guardado.
+- **Iniciar sesión** espera como máximo 10 segundos y, si no hay respuesta, avisa
+  "La conexión está muy lenta".
+- **La subida de facturas nunca corre dos veces a la vez** y, al terminar cada una,
+  marca solo esa en lo guardado del celular. Antes, una factura guardada mientras otra
+  se estaba subiendo podía perderse, y la misma factura podía subirse dos veces.
+- Los límites de tiempo se aplican solo a lecturas y al inicio de sesión, **nunca a
+  la subida de facturas**: cortar una subida que el servidor sí alcanzó a procesar
+  haría que se reintentara y se duplicara la venta.
+
+### Riesgos conocidos (pendientes)
+- Si el servidor guarda una factura pero la respuesta se pierde por el camino, la
+  app la reintenta y queda duplicada. Para cerrarlo hace falta enviar el `idLocal`
+  como identificador único y una restricción en la base de datos.
+- Al guardar el cuadre, si el servidor responde con error (no con corte de red), la
+  app igualmente muestra "Cuadre guardado ✅".

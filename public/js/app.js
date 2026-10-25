@@ -35,6 +35,18 @@ function showView(id) {
 function mostrarHome() { showView('home'); renderHome(); }
 
 // ─── Login ─────────────────────────────────────────────────────────────────
+// fetch con límite de tiempo. Una señal mala a veces no falla ni responde: se
+// queda colgada, y sin límite la pantalla espera sin fin. Aquí, pasado el
+// tiempo, se corta (error "AbortError") y la app sigue con lo guardado en el
+// celular. SOLO para lecturas y el inicio de sesión: NO se usa al subir
+// facturas, porque cortar una subida que el servidor sí alcanzó a procesar
+// haría que se reintentara y se duplicara la venta.
+function fetchConLimite(url, opciones = {}, ms = 4000) {
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), ms);
+  return fetch(url, { ...opciones, signal: control.signal }).finally(() => clearTimeout(temporizador));
+}
+
 // Ojito del campo de contraseña: alterna entre ocultar y mostrar lo escrito.
 // El botón no le quita el foco al campo (onmousedown), así el teclado del
 // celular no se cierra, y el cursor se queda donde estaba.
@@ -57,10 +69,10 @@ function togglePassword() {
 async function login() {
   const password = document.getElementById('password').value;
   try {
-    const res = await fetch('/api/validatePassword', {
+    const res = await fetchConLimite('/api/validatePassword', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
-    });
+    }, 10000);
     if (!res.ok) {
       document.getElementById('loginError').textContent = 'Contraseña incorrecta';
       return;
@@ -74,22 +86,54 @@ async function login() {
     fijarVisibilidadPassword(false);
     await entrarApp();
   } catch (e) {
-    document.getElementById('loginError').textContent = 'Sin conexión — necesitas internet para entrar la primera vez.';
+    document.getElementById('loginError').textContent = e.name === 'AbortError'
+      ? 'La conexión está muy lenta. Intenta de nuevo.'
+      : 'Sin conexión — necesitas internet para entrar la primera vez.';
   }
 }
 
 async function entrarApp() {
   document.getElementById('login').classList.remove('active');
   document.getElementById('topNav').style.display = 'flex';
-  await sincronizarCatalogoSiHayInternet();
+  // Primero lo que ya hay en el celular: la pantalla de inicio aparece al
+  // instante, sin esperar a la red. El catálogo se refresca después, con un
+  // límite de tiempo, y los precios nuevos se usan en cuanto llegan.
   catalogo = leerCatalogoLocal();
   mostrarHome();
   intentarSincronizarPendientes();
+  await sincronizarCatalogoSiHayInternet();
+  catalogo = leerCatalogoLocal();
+}
+
+// Cerrar sesión. Dos cosas a tener en cuenta en una app que funciona sin conexión:
+// 1) Las facturas sin subir viven en el celular (localStorage), no en la sesión:
+//    NO se borran; se suben cuando se vuelve a entrar.
+// 2) Para entrar hace falta internet (la contraseña se valida en el servidor):
+//    quien salga sin conexión no podrá volver a entrar hasta recuperarla.
+function cerrarSesion() {
+  const pendientes = leerFacturasLocales().filter((f) => !f.sincronizada).length;
+  const avisos = [];
+  if (pendientes > 0) {
+    avisos.push(`Tienes ${pendientes} ${pendientes === 1 ? 'factura sin subir' : 'facturas sin subir'}. No se pierden: se suben cuando vuelvas a entrar con internet.`);
+  }
+  if (navigator.onLine === false) {
+    avisos.push('Estás sin conexión: si sales no podrás volver a entrar (ni facturar) hasta tener internet.');
+  }
+  if (!confirm(['¿Cerrar sesión?', ...avisos].join('\n\n'))) return;
+
+  token = '';
+  sessionStorage.removeItem('posToken');
+  document.getElementById('topNav').style.display = 'none';
+  document.getElementById('password').value = '';
+  fijarVisibilidadPassword(false);
+  document.getElementById('loginError').textContent = '';
+  lineasFactura = [];
+  showView('login');
 }
 
 async function sincronizarCatalogoSiHayInternet() {
   try {
-    const res = await fetch('/api/catalogo', { headers: { 'x-pos-token': token } });
+    const res = await fetchConLimite('/api/catalogo', { headers: { 'x-pos-token': token } }, 4000);
     if (res.ok) {
       const data = await res.json();
       localStorage.setItem(LS_CATALOGO, JSON.stringify(data));
@@ -98,11 +142,29 @@ async function sincronizarCatalogoSiHayInternet() {
 }
 
 // ─── Sincronización de facturas pendientes ────────────────────────────────
-async function intentarSincronizarPendientes() {
-  const lista = leerFacturasLocales();
-  const pendientes = lista.filter((f) => !f.sincronizada);
-  if (!pendientes.length) { actualizarBadgeSync(0); return; }
+// Subida de facturas al servidor. Dos reglas para no perder ni duplicar ventas:
+// 1) Una sola subida a la vez. Si llega otra llamada mientras hay una en curso
+//    (el reintento de 30 s, el aviso de "volvió el internet" o recién guardar una
+//    factura), no corre en paralelo —subiría la misma factura dos veces—: se anota
+//    y se repite al terminar, para que la factura nueva no se quede esperando.
+// 2) Al terminar cada factura se marca SOLO esa dentro de lo guardado en el
+//    celular. Antes se reescribía la lista entera con la copia leída al empezar, y
+//    una factura guardada mientras tanto desaparecía.
+let subiendo = false;
+let repetirSubida = false;
 
+function marcarFacturaSubida(idLocal) {
+  const lista = leerFacturasLocales();
+  const factura = lista.find((f) => f.idLocal === idLocal);
+  if (factura) {
+    factura.sincronizada = true;
+    guardarFacturasLocales(lista);
+  }
+}
+
+// Sube las facturas que estén pendientes en este momento. Devuelve cuántas intentó.
+async function subirPendientesUnaVez() {
+  const pendientes = leerFacturasLocales().filter((f) => !f.sincronizada);
   for (const f of pendientes) {
     try {
       const res = await fetch('/api/facturas', {
@@ -110,12 +172,28 @@ async function intentarSincronizarPendientes() {
         headers: { 'Content-Type': 'application/json', 'x-pos-token': token },
         body: JSON.stringify({ fecha: f.fecha, vendedor: f.vendedor, items: f.items }),
       });
-      if (res.ok) f.sincronizada = true;
+      if (res.ok) marcarFacturaSubida(f.idLocal);
     } catch (e) {
       break; // sigue sin conexión, dejamos de intentar por ahora
     }
   }
-  guardarFacturasLocales(lista);
+  return pendientes.length;
+}
+
+async function intentarSincronizarPendientes() {
+  if (!token) return; // sin sesión (p. ej. tras cerrarla) no hay con qué subir: se hará al volver a entrar
+  if (subiendo) { repetirSubida = true; return; }
+  subiendo = true;
+  let intentadas = 0;
+  try {
+    do {
+      repetirSubida = false;
+      intentadas += await subirPendientesUnaVez();
+    } while (repetirSubida && token);
+  } finally {
+    subiendo = false;
+  }
+  if (!intentadas) { actualizarBadgeSync(0); return; }
   const quedan = leerFacturasLocales().filter((f) => !f.sincronizada).length;
   actualizarBadgeSync(quedan);
   if (document.getElementById('home').classList.contains('active')) renderHome();
